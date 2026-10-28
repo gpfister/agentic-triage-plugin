@@ -1,0 +1,11 @@
+{
+  "prompt-triage": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "uv run hooks/prompt_triage.py",
+        "timeout": 20
+      }
+    ]
+  }
+}

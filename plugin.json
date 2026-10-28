@@ -1,0 +1,6 @@
+{
+  "name": "agentic-triage-plugin",
+  "description": "Dynamic prompt intent triage lifecycle hook using Laya Router System 1 model to route user requests across installed agentic plugins.",
+  "version": "0.1.0",
+  "license": "MIT"
+}

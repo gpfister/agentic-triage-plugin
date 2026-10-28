@@ -1,0 +1,19 @@
+[project]
+name = "agentic-triage-plugin"
+version = "0.1.0"
+description = "Dynamic prompt intent triage lifecycle hook using Laya Router System 1 model."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Greg PFISTER", email = "gregory.pfister@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "laya>=0.4.15",
+    "pydantic>=2.10.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]

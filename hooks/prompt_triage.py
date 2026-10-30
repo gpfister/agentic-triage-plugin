@@ -3,19 +3,19 @@
 
 Triages incoming user prompts dynamically using Laya Router System 1 model based on installed plugins:
 - Evaluates code change requests if agentic-coding-plugin is installed
+- Evaluates task monitoring requests if agentic-monitoring-plugin (or agentic-monitor-plugin) is installed
 - Evaluates issue investigation requests if agentic-investigate-plugin is installed
-- Evaluates task monitoring requests if agentic-monitoring-plugin is installed
 - Evaluates topic research requests if agentic-research-plugin is installed
-- Evaluates documentation requests if agentic-obsidian-plugin is installed
+- Evaluates documentation requests if agentic-obsidian-plugin (or agentic-document-plugin) is installed
 - Evaluates inquiries involving no changes (always in scope)
 - Detects mixed prompts across active capabilities
 
 If one response has confidence >= 0.4, directly triggers the corresponding triage action:
 - inquiries: main agent responds directly to prompt (no changes directive)
 - coding: main agent invokes @coding subagent using invoke_subagent
-- monitoring: main agent invokes @monitoring subagent using invoke_subagent
-- investigation: main agent invokes @investigate subagent using invoke_subagent
-- research: main agent invokes @research subagent using invoke_subagent
+- monitoring: main agent invokes @coding-monitor subagent using invoke_subagent
+- investigation: main agent invokes @coding-investigate subagent using invoke_subagent
+- research: main agent invokes @coding-research subagent using invoke_subagent
 - documentation: main agent invokes @coding-document subagent using invoke_subagent
 - mixed: main agent rejects prompt (cannot process mixed requests)
 
@@ -49,7 +49,9 @@ KNOWN_PLUGINS = {
     "agentic-coding-plugin",
     "agentic-investigate-plugin",
     "agentic-monitoring-plugin",
+    "agentic-monitor-plugin",
     "agentic-obsidian-plugin",
+    "agentic-document-plugin",
     "agentic-research-plugin",
 }
 
@@ -129,10 +131,10 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         DynamicTriageSpec(responses, response_to_intent, intent_to_response, response_to_directive)
     """
     coding_enabled = "agentic-coding-plugin" in installed_plugins
-    monitoring_enabled = "agentic-monitoring-plugin" in installed_plugins
+    monitoring_enabled = bool(installed_plugins & {"agentic-monitoring-plugin", "agentic-monitor-plugin"})
     investigation_enabled = "agentic-investigate-plugin" in installed_plugins
     research_enabled = "agentic-research-plugin" in installed_plugins
-    documentation_enabled = "agentic-obsidian-plugin" in installed_plugins
+    documentation_enabled = bool(installed_plugins & {"agentic-obsidian-plugin", "agentic-document-plugin"})
 
     responses: dict[str, str] = {}
     r_to_intent: dict[str, str] = {}
@@ -165,7 +167,7 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         )
         idx += 1
 
-    # Task monitoring request (if agentic-monitoring-plugin is installed)
+    # Task monitoring request (if agentic-monitoring-plugin or agentic-monitor-plugin is installed)
     if monitoring_enabled:
         r_key = f"response {idx}"
         responses[r_key] = "one or more task monitoring request"
@@ -173,8 +175,8 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         intent_to_r["monitoring"] = r_key
         r_to_directive[r_key] = (
             f"Prompt Triage Directive: {r_key} identified (task monitoring request). "
-            "You must invoke the monitoring subagent (@monitoring) using invoke_subagent:\n"
-            "invoke_subagent(TypeName='monitoring', Role='Telemetry Monitor', Prompt=...). "
+            "You must invoke the monitoring subagent (@coding-monitor) using invoke_subagent:\n"
+            "invoke_subagent(TypeName='coding-monitor', Role='Telemetry Monitor', Prompt=...). "
             "Do not perform monitoring directly in the main agent turn."
         )
         idx += 1
@@ -187,8 +189,8 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         intent_to_r["investigation"] = r_key
         r_to_directive[r_key] = (
             f"Prompt Triage Directive: {r_key} identified (issue investigation request). "
-            "You must invoke the investigate subagent (@investigate) using invoke_subagent:\n"
-            "invoke_subagent(TypeName='investigate', Role='Issue Investigator', Prompt=...). "
+            "You must invoke the investigate subagent (@coding-investigate) using invoke_subagent:\n"
+            "invoke_subagent(TypeName='coding-investigate', Role='Issue Investigator', Prompt=...). "
             "Do not perform investigation directly in the main agent turn."
         )
         idx += 1
@@ -201,13 +203,13 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         intent_to_r["research"] = r_key
         r_to_directive[r_key] = (
             f"Prompt Triage Directive: {r_key} identified (topic research or information retrieval request). "
-            "You must invoke the research subagent (@research) using invoke_subagent:\n"
-            "invoke_subagent(TypeName='research', Role='Topic Researcher', Prompt=...). "
+            "You must invoke the research subagent (@coding-research) using invoke_subagent:\n"
+            "invoke_subagent(TypeName='coding-research', Role='Topic Researcher', Prompt=...). "
             "Do not perform research directly in the main agent turn."
         )
         idx += 1
 
-    # Documentation request (if agentic-obsidian-plugin is installed)
+    # Documentation request (if agentic-obsidian-plugin or agentic-document-plugin is installed)
     if documentation_enabled:
         r_key = f"response {idx}"
         responses[r_key] = "one or more documentation request"
@@ -384,22 +386,25 @@ class LayaTriageEngine:
         prompt_lower = prompt.lower()
 
         coding_enabled = "agentic-coding-plugin" in self.installed_plugins
-        monitoring_enabled = "agentic-monitoring-plugin" in self.installed_plugins
+        monitoring_enabled = bool(self.installed_plugins & {"agentic-monitoring-plugin", "agentic-monitor-plugin"})
         investigation_enabled = "agentic-investigate-plugin" in self.installed_plugins
         research_enabled = "agentic-research-plugin" in self.installed_plugins
-        documentation_enabled = "agentic-obsidian-plugin" in self.installed_plugins
+        documentation_enabled = bool(self.installed_plugins & {"agentic-obsidian-plugin", "agentic-document-plugin"})
 
         has_monitoring = monitoring_enabled and any(
             w in prompt_lower
-            for w in ["monitor", "watch log", "watch serial", "tail -f", "serial console", "log stream", "@monitoring"]
+            for w in [
+                "monitor", "watch log", "watch serial", "tail -f", "serial console", "log stream",
+                "@coding-monitor", "@coding-monitoring", "coding-monitor", "coding-monitoring", "@monitoring"
+            ]
         )
         has_investigation = investigation_enabled and any(
             w in prompt_lower
             for w in [
                 "investigate", "investigation", "investigating", "invetigate", "invetigation",
                 "diagnose", "root cause", "find the cause", "find cause", "troubleshoot",
-                "@investigate", "coding-investigate", "coding-investigator", "coding-invetigator",
-                "@coding-investigate", "@coding-investigator", "@coding-invetigator",
+                "@coding-investigate", "coding-investigate", "@investigate", "coding-investigator", "coding-invetigator",
+                "@coding-investigator", "@coding-invetigator",
                 "track down the bug", "track down the issue", "track down the root cause"
             ]
         )
@@ -411,7 +416,7 @@ class LayaTriageEngine:
             w in prompt_lower
             for w in [
                 "research", "deep research", "literature review", "web research", "find papers",
-                "topic research", "information retrieval", "@research", "research subagent",
+                "topic research", "information retrieval", "@coding-research", "coding-research", "@research", "research subagent",
                 "state of the art", "prior art", "market research"
             ]
         )

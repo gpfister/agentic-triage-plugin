@@ -7,13 +7,13 @@ This rule set applies whenever the `agentic-triage-plugin` is active in an Antig
 ## 1. Triage Architecture & Principles
 - **Fast Non-Autoregressive Classification**: Prompt triage uses the Laya Router System 1 model to classify user intent within a single fast forward pass.
 - **Dynamic Plugin-Aware Routing**:
-  - Evaluate if it is a code change request only if `agentic-coding-plugin` is installed.
-  - Evaluate if it is an issue investigation request only if `agentic-investigate-plugin` is installed.
-  - Evaluate if it is a task monitoring request only if `agentic-monitoring-plugin` is installed.
-  - Evaluate if it is a topic research request only if `agentic-research-plugin` is installed.
-  - Evaluate if it is a documentation request only if `agentic-obsidian-plugin` is installed.
+  - Evaluate if it is a code change request only if `agentic-coding-plugin` is installed (routes to `@coding`).
+  - Evaluate if it is an issue investigation request only if `agentic-investigate-plugin` is installed (routes to `@coding-investigate`).
+  - Evaluate if it is a task monitoring request only if `agentic-monitoring-plugin` (or `agentic-monitor-plugin`) is installed (routes to `@coding-monitor`).
+  - Evaluate if it is a topic research request only if `agentic-research-plugin` is installed (routes to `@coding-research`).
+  - Evaluate if it is a documentation request only if `agentic-obsidian-plugin` (or `agentic-document-plugin`) is installed (routes to `@coding-document`).
   - Inquiries involving no changes are always supported.
-  - If a requested capability is not supported by installed plugins, respond directly with guidance.
+  - If a requested capability is not supported by installed plugins, do not evaluate or include that response; respond directly with guidance.
 
 ---
 

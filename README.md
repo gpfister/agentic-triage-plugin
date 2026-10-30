@@ -5,10 +5,10 @@ Dynamic prompt intent triage lifecycle hook for [Google Antigravity](https://ant
 ## Overview
 `agentic-triage-plugin` automatically triages incoming user prompts before model execution using the non-autoregressive Laya Router System 1 model. It dynamically adapts its intent criteria based on which plugins are installed:
 - Evaluates code change requests if `agentic-coding-plugin` is installed (routes to `@coding`).
-- Evaluates issue investigations if `agentic-investigate-plugin` is installed (routes to `@investigate`).
-- Evaluates task monitoring if `agentic-monitoring-plugin` is installed (routes to `@monitoring`).
-- Evaluates topic and web research if `agentic-research-plugin` is installed (routes to `@research`).
-- Evaluates documentation requests if `agentic-obsidian-plugin` is installed (routes to `@coding-document`).
+- Evaluates issue investigations if `agentic-investigate-plugin` is installed (routes to `@coding-investigate`).
+- Evaluates task monitoring if `agentic-monitoring-plugin` (or `agentic-monitor-plugin`) is installed (routes to `@coding-monitor`).
+- Evaluates topic and web research if `agentic-research-plugin` is installed (routes to `@coding-research`).
+- Evaluates documentation requests if `agentic-obsidian-plugin` (or `agentic-document-plugin`) is installed (routes to `@coding-document`).
 - Handles informational inquiries directly without code modifications.
 - Rejects conflicting mixed prompts, asking users to separate their requests.
 

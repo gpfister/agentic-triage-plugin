@@ -119,7 +119,7 @@ def test_build_dynamic_triage_spec_only_research():
     assert "investigation" not in spec.intent_to_response
     assert "monitoring" not in spec.intent_to_response
     assert spec.intent_to_response.get("mixed") == "response 3"
-    assert "@research" in spec.response_to_directive["response 2"]
+    assert "@coding-research" in spec.response_to_directive["response 2"]
     assert "Topic Researcher" in spec.response_to_directive["response 2"]
 
 
@@ -189,7 +189,7 @@ def test_build_dynamic_triage_spec_all_four():
     assert spec.intent_to_response["mixed"] == "response 6"
     assert spec.response_to_intent["response 5"] == "research"
     assert spec.response_to_intent["response 6"] == "mixed"
-    assert "@research" in spec.response_to_directive["response 5"]
+    assert "@coding-research" in spec.response_to_directive["response 5"]
 
 
 def test_build_dynamic_triage_spec_none():
@@ -321,7 +321,7 @@ def test_triage_response_research():
     assert "=== Prompt Triage Telemetry & Metadata ===" in msg
     assert "invoke_subagent" in msg
     assert "research" in msg
-    assert "@research" in msg
+    assert "@coding-research" in msg
     assert "Topic Researcher" in msg
 
 

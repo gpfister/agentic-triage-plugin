@@ -58,10 +58,15 @@ def test_detect_installed_plugins_custom():
     assert plugins == {"agentic-coding-plugin"}
 
 
+def test_detect_installed_plugins_research():
+    plugins = detect_installed_plugins(custom_plugins={"agentic-research-plugin"})
+    assert plugins == {"agentic-research-plugin"}
+
+
 def test_detect_installed_plugins_env(monkeypatch):
-    monkeypatch.setenv("INSTALLED_PLUGINS", "agentic-coding-plugin, agentic-monitoring-plugin")
+    monkeypatch.setenv("INSTALLED_PLUGINS", "agentic-coding-plugin, agentic-monitoring-plugin, agentic-research-plugin")
     plugins = detect_installed_plugins()
-    assert plugins == {"agentic-coding-plugin", "agentic-monitoring-plugin"}
+    assert plugins == {"agentic-coding-plugin", "agentic-monitoring-plugin", "agentic-research-plugin"}
 
 
 def test_build_dynamic_triage_spec_all():
@@ -96,6 +101,40 @@ def test_build_dynamic_triage_spec_only_investigate():
     assert spec.response_to_intent["response 2"] == "investigation"
     assert "coding" not in spec.intent_to_response
     assert spec.intent_to_response.get("mixed") == "response 3"
+
+
+def test_build_dynamic_triage_spec_only_research():
+    spec = build_dynamic_triage_spec({"agentic-research-plugin"})
+    assert "response 1" in spec.responses
+    assert "response 2" in spec.responses
+    assert spec.responses["response 2"] == "one or more topic research or information retrieval requests"
+    assert spec.response_to_intent["response 2"] == "research"
+    assert spec.intent_to_response["research"] == "response 2"
+    assert "coding" not in spec.intent_to_response
+    assert "investigation" not in spec.intent_to_response
+    assert "monitoring" not in spec.intent_to_response
+    assert spec.intent_to_response.get("mixed") == "response 3"
+    assert "@research" in spec.response_to_directive["response 2"]
+    assert "Topic Researcher" in spec.response_to_directive["response 2"]
+
+
+def test_build_dynamic_triage_spec_all_four():
+    spec = build_dynamic_triage_spec({
+        "agentic-coding-plugin",
+        "agentic-investigate-plugin",
+        "agentic-monitoring-plugin",
+        "agentic-research-plugin",
+    })
+    assert len(spec.responses) == 6
+    assert spec.intent_to_response["question"] == "response 1"
+    assert spec.intent_to_response["coding"] == "response 2"
+    assert spec.intent_to_response["monitoring"] == "response 3"
+    assert spec.intent_to_response["investigation"] == "response 4"
+    assert spec.intent_to_response["research"] == "response 5"
+    assert spec.intent_to_response["mixed"] == "response 6"
+    assert spec.response_to_intent["response 5"] == "research"
+    assert spec.response_to_intent["response 6"] == "mixed"
+    assert "@research" in spec.response_to_directive["response 5"]
 
 
 def test_build_dynamic_triage_spec_none():
@@ -208,6 +247,29 @@ def test_triage_response_investigation():
     assert "investigate" in msg
 
 
+def test_triage_response_research():
+    engine = LayaTriageEngine(
+        use_router=False,
+        installed_plugins={
+            "agentic-coding-plugin",
+            "agentic-investigate-plugin",
+            "agentic-monitoring-plugin",
+            "agentic-research-plugin",
+        },
+    )
+    result = engine.triage("Please conduct deep research on state of the art retrieval models", invocation_num=0)
+    assert result.intent == "research"
+    assert result.response_confidence >= CONFIDENCE_THRESHOLD
+    assert len(result.inject_steps) > 0
+    assert "systemMessage" in result.inject_steps[0]
+    msg = result.inject_steps[0]["systemMessage"]["systemMessage"]
+    assert "=== Prompt Triage Telemetry & Metadata ===" in msg
+    assert "invoke_subagent" in msg
+    assert "research" in msg
+    assert "@research" in msg
+    assert "Topic Researcher" in msg
+
+
 def test_triage_response_mixed():
     engine = LayaTriageEngine(
         use_router=False,
@@ -215,6 +277,52 @@ def test_triage_response_mixed():
     )
     result = engine.triage(
         "Explain how the server starts and also implement a new fix and monitor the logs",
+        invocation_num=0,
+    )
+    assert result.intent == "mixed"
+    assert result.response_confidence >= CONFIDENCE_THRESHOLD
+    assert len(result.inject_steps) > 0
+    assert "systemMessage" in result.inject_steps[0]
+    msg = result.inject_steps[0]["systemMessage"]["systemMessage"]
+    assert "=== Prompt Triage Telemetry & Metadata ===" in msg
+    assert "cannot process a mix" in msg
+
+
+def test_triage_response_mixed_with_research():
+    engine = LayaTriageEngine(
+        use_router=False,
+        installed_plugins={
+            "agentic-coding-plugin",
+            "agentic-investigate-plugin",
+            "agentic-monitoring-plugin",
+            "agentic-research-plugin",
+        },
+    )
+    result = engine.triage(
+        "Research quantum computing algorithms and also implement a prototype in Python",
+        invocation_num=0,
+    )
+    assert result.intent == "mixed"
+    assert result.response_confidence >= CONFIDENCE_THRESHOLD
+    assert len(result.inject_steps) > 0
+    assert "systemMessage" in result.inject_steps[0]
+    msg = result.inject_steps[0]["systemMessage"]["systemMessage"]
+    assert "=== Prompt Triage Telemetry & Metadata ===" in msg
+    assert "cannot process a mix" in msg
+
+
+def test_triage_response_mixed_research_and_inquiry():
+    engine = LayaTriageEngine(
+        use_router=False,
+        installed_plugins={
+            "agentic-coding-plugin",
+            "agentic-investigate-plugin",
+            "agentic-monitoring-plugin",
+            "agentic-research-plugin",
+        },
+    )
+    result = engine.triage(
+        "Explain how the current system works and also conduct deep research on alternatives",
         invocation_num=0,
     )
     assert result.intent == "mixed"

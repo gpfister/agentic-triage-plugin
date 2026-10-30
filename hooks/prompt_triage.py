@@ -5,6 +5,7 @@ Triages incoming user prompts dynamically using Laya Router System 1 model based
 - Evaluates code change requests if agentic-coding-plugin is installed
 - Evaluates issue investigation requests if agentic-investigate-plugin is installed
 - Evaluates task monitoring requests if agentic-monitoring-plugin is installed
+- Evaluates topic research requests if agentic-research-plugin is installed
 - Evaluates inquiries involving no changes (always in scope)
 - Detects mixed prompts across active capabilities
 
@@ -13,6 +14,7 @@ If one response has confidence >= 0.4, directly triggers the corresponding triag
 - coding: main agent invokes @coding subagent using invoke_subagent
 - monitoring: main agent invokes @monitoring subagent using invoke_subagent
 - investigation: main agent invokes @investigate subagent using invoke_subagent
+- research: main agent invokes @research subagent using invoke_subagent
 - mixed: main agent rejects prompt (cannot process mixed requests)
 
 Otherwise (confidence < 0.4), instructs the main agent to ask the user via ask_question.
@@ -45,6 +47,7 @@ KNOWN_PLUGINS = {
     "agentic-coding-plugin",
     "agentic-investigate-plugin",
     "agentic-monitoring-plugin",
+    "agentic-research-plugin",
 }
 
 
@@ -125,6 +128,7 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
     coding_enabled = "agentic-coding-plugin" in installed_plugins
     monitoring_enabled = "agentic-monitoring-plugin" in installed_plugins
     investigation_enabled = "agentic-investigate-plugin" in installed_plugins
+    research_enabled = "agentic-research-plugin" in installed_plugins
 
     responses: dict[str, str] = {}
     r_to_intent: dict[str, str] = {}
@@ -185,10 +189,24 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
         )
         idx += 1
 
-    # Mixed request (if at least one capability is enabled alongside inquiries)
-    if any([coding_enabled, monitoring_enabled, investigation_enabled]):
+    # Topic research request (if agentic-research-plugin is installed)
+    if research_enabled:
         r_key = f"response {idx}"
-        if coding_enabled and monitoring_enabled and investigation_enabled:
+        responses[r_key] = "one or more topic research or information retrieval requests"
+        r_to_intent[r_key] = "research"
+        intent_to_r["research"] = r_key
+        r_to_directive[r_key] = (
+            f"Prompt Triage Directive: {r_key} identified (topic research or information retrieval request). "
+            "You must invoke the research subagent (@research) using invoke_subagent:\n"
+            "invoke_subagent(TypeName='research', Role='Topic Researcher', Prompt=...). "
+            "Do not perform research directly in the main agent turn."
+        )
+        idx += 1
+
+    # Mixed request (if at least one capability is enabled alongside inquiries)
+    if any([coding_enabled, monitoring_enabled, investigation_enabled, research_enabled]):
+        r_key = f"response {idx}"
+        if coding_enabled and monitoring_enabled and investigation_enabled and not research_enabled:
             desc = "a mix of inquiries, code change requests, task monitoring and/or issue investigation request"
         else:
             parts = ["inquiries"]
@@ -198,6 +216,8 @@ def build_dynamic_triage_spec(installed_plugins: set[str]) -> DynamicTriageSpec:
                 parts.append("task monitoring")
             if investigation_enabled:
                 parts.append("issue investigation requests")
+            if research_enabled:
+                parts.append("topic research requests")
             desc = f"a mix of {', '.join(parts[:-1])} and/or {parts[-1]}"
 
         responses[r_key] = desc
@@ -282,7 +302,7 @@ class TriageResult(BaseModel):
         default=False,
         description="True if confidence < 0.40 requiring ask_question user selection",
     )
-    intent: Optional[str] = Field(default=None, description="Semantic intent: question, coding, monitoring, investigation, or mixed")
+    intent: Optional[str] = Field(default=None, description="Semantic intent: question, coding, monitoring, investigation, research, or mixed")
     intent_confidence: float = Field(default=1.0, description="Confidence of intent classification")
     inject_steps: List[Dict[str, Any]] = Field(default_factory=list, description="Antigravity injectSteps payload")
     installed_plugins: List[str] = Field(default_factory=list, description="Plugins detected active during triage")
@@ -349,6 +369,7 @@ class LayaTriageEngine:
         coding_enabled = "agentic-coding-plugin" in self.installed_plugins
         monitoring_enabled = "agentic-monitoring-plugin" in self.installed_plugins
         investigation_enabled = "agentic-investigate-plugin" in self.installed_plugins
+        research_enabled = "agentic-research-plugin" in self.installed_plugins
 
         has_monitoring = monitoring_enabled and any(
             w in prompt_lower
@@ -368,6 +389,14 @@ class LayaTriageEngine:
             w in prompt_lower
             for w in ["write", "create", "implement", "build", "refactor", "bugfix", "fix", "feature", "code change", "@coding"]
         )
+        has_research = research_enabled and any(
+            w in prompt_lower
+            for w in [
+                "research", "deep research", "literature review", "web research", "find papers",
+                "topic research", "information retrieval", "@research", "research subagent",
+                "state of the art", "prior art", "market research"
+            ]
+        )
         has_inquiry = any(
             w in prompt_lower
             for w in ["how", "what", "why", "explain", "review", "inquiry", "is there", "can you tell", "describe", "where"]
@@ -376,7 +405,10 @@ class LayaTriageEngine:
         if has_investigation and not has_monitoring and not any(w in prompt_lower for w in ["implement", "create feature", "deploy", "merge"]):
             has_inquiry = False
 
-        mixed_count = sum([bool(has_monitoring), bool(has_coding), bool(has_inquiry), bool(has_investigation)])
+        if has_research and not has_monitoring and not has_coding and not has_investigation and not any(w in prompt_lower for w in ["explain", "describe", "also"]):
+            has_inquiry = False
+
+        mixed_count = sum([bool(has_monitoring), bool(has_coding), bool(has_inquiry), bool(has_investigation), bool(has_research)])
         mixed_key = self.intent_to_response.get("mixed")
 
         # Initialize base uniform probabilities across active responses
@@ -404,6 +436,12 @@ class LayaTriageEngine:
             probs = dict(base_probs)
             probs[r_key] = 0.90
             return r_key, 0.90, probs
+
+        if has_research and "research" in self.intent_to_response:
+            r_key = self.intent_to_response["research"]
+            probs = dict(base_probs)
+            probs[r_key] = 0.92
+            return r_key, 0.92, probs
 
         if has_inquiry and "question" in self.intent_to_response:
             r_key = self.intent_to_response["question"]

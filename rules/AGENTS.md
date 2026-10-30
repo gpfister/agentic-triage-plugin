@@ -11,6 +11,7 @@ This rule set applies whenever the `agentic-triage-plugin` is active in an Antig
   - Evaluate if it is an issue investigation request only if `agentic-investigate-plugin` is installed.
   - Evaluate if it is a task monitoring request only if `agentic-monitoring-plugin` is installed.
   - Evaluate if it is a topic research request only if `agentic-research-plugin` is installed.
+  - Evaluate if it is a documentation request only if `agentic-obsidian-plugin` is installed.
   - Inquiries involving no changes are always supported.
   - If a requested capability is not supported by installed plugins, respond directly with guidance.
 

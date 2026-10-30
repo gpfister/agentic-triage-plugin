@@ -63,6 +63,11 @@ def test_detect_installed_plugins_research():
     assert plugins == {"agentic-research-plugin"}
 
 
+def test_detect_installed_plugins_obsidian():
+    plugins = detect_installed_plugins(custom_plugins={"agentic-obsidian-plugin"})
+    assert plugins == {"agentic-obsidian-plugin"}
+
+
 def test_detect_installed_plugins_env(monkeypatch):
     monkeypatch.setenv("INSTALLED_PLUGINS", "agentic-coding-plugin, agentic-monitoring-plugin, agentic-research-plugin")
     plugins = detect_installed_plugins()
@@ -116,6 +121,56 @@ def test_build_dynamic_triage_spec_only_research():
     assert spec.intent_to_response.get("mixed") == "response 3"
     assert "@research" in spec.response_to_directive["response 2"]
     assert "Topic Researcher" in spec.response_to_directive["response 2"]
+
+
+def test_build_dynamic_triage_spec_only_obsidian():
+    spec = build_dynamic_triage_spec({"agentic-obsidian-plugin"})
+    assert "response 1" in spec.responses
+    assert "response 2" in spec.responses
+    assert spec.responses["response 2"] == "one or more documentation request"
+    assert spec.response_to_intent["response 2"] == "documentation"
+    assert spec.intent_to_response["documentation"] == "response 2"
+    assert "coding" not in spec.intent_to_response
+    assert "investigation" not in spec.intent_to_response
+    assert "monitoring" not in spec.intent_to_response
+    assert "research" not in spec.intent_to_response
+    assert spec.intent_to_response.get("mixed") == "response 3"
+    assert "@coding-document" in spec.response_to_directive["response 2"]
+    assert "Documentation Specialist" in spec.response_to_directive["response 2"]
+
+
+def test_build_dynamic_triage_spec_all_five():
+    spec = build_dynamic_triage_spec({
+        "agentic-coding-plugin",
+        "agentic-investigate-plugin",
+        "agentic-monitoring-plugin",
+        "agentic-research-plugin",
+        "agentic-obsidian-plugin",
+    })
+    assert len(spec.responses) == 7
+    assert spec.intent_to_response["question"] == "response 1"
+    assert spec.intent_to_response["coding"] == "response 2"
+    assert spec.intent_to_response["monitoring"] == "response 3"
+    assert spec.intent_to_response["investigation"] == "response 4"
+    assert spec.intent_to_response["research"] == "response 5"
+    assert spec.intent_to_response["documentation"] == "response 6"
+    assert spec.intent_to_response["mixed"] == "response 7"
+    assert spec.response_to_intent["response 6"] == "documentation"
+    assert spec.response_to_intent["response 7"] == "mixed"
+    assert "@coding-document" in spec.response_to_directive["response 6"]
+
+
+def test_heuristic_documentation_request():
+    engine = LayaTriageEngine(
+        use_router=False,
+        installed_plugins={"agentic-obsidian-plugin", "agentic-coding-plugin"},
+    )
+    choice, conf, probs = engine.evaluate_system1_triage(
+        "Please document the project architecture and features in the obsidian vault"
+    )
+    assert choice == engine.intent_to_response["documentation"]
+    assert conf >= 0.90
+    assert engine.response_to_intent[choice] == "documentation"
 
 
 def test_build_dynamic_triage_spec_all_four():

@@ -8,6 +8,7 @@ Dynamic prompt intent triage lifecycle hook for [Google Antigravity](https://ant
 - Evaluates issue investigations if `agentic-investigate-plugin` is installed (routes to `@investigate`).
 - Evaluates task monitoring if `agentic-monitoring-plugin` is installed (routes to `@monitoring`).
 - Evaluates topic and web research if `agentic-research-plugin` is installed (routes to `@research`).
+- Evaluates documentation requests if `agentic-obsidian-plugin` is installed (routes to `@coding-document`).
 - Handles informational inquiries directly without code modifications.
 - Rejects conflicting mixed prompts, asking users to separate their requests.
 
